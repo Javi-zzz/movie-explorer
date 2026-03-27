@@ -5,6 +5,22 @@ const API_KEY = "55525f691ef74075225c23ebe880895f";
 const BASE_URL = "https://api.themoviedb.org/3";
 const IMG_BASE = "https://image.tmdb.org/t/p/w500";
 
+function sortMovies(items, sortValue) {
+  const sorted = [...items];
+
+  if (sortValue === "release_desc") {
+    sorted.sort((a, b) => (b.release_date || "").localeCompare(a.release_date || ""));
+  } else if (sortValue === "release_asc") {
+    sorted.sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""));
+  } else if (sortValue === "rating_desc") {
+    sorted.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+  } else if (sortValue === "rating_asc") {
+    sorted.sort((a, b) => (a.vote_average || 0) - (b.vote_average || 0));
+  }
+
+  return sorted;
+}
+
 export default function App() {
   const [movies, setMovies] = useState([]);
   const [query, setQuery] = useState("");
@@ -13,55 +29,27 @@ export default function App() {
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    async function fetchMovies() {
+      try {
+        const endpoint = query.trim()
+          ? `${BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=${page}`
+          : `${BASE_URL}/movie/popular?api_key=${API_KEY}&page=${page}`;
+
+        const response = await fetch(endpoint);
+        const data = await response.json();
+
+        const results = Array.isArray(data.results) ? sortMovies(data.results, sort) : [];
+        setMovies(results);
+        setTotalPages(Math.min(data.total_pages || 1, 500));
+      } catch (error) {
+        console.error("Error fetching movies:", error);
+        setMovies([]);
+        setTotalPages(1);
+      }
+    }
+
     fetchMovies();
-  }, [page, query]);
-
-  useEffect(() => {
-    applySort();
-  }, [sort]);
-
-  const fetchMovies = async () => {
-    try {
-      const endpoint = query.trim()
-        ? `${BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(
-            query
-          )}&page=${page}`
-        : `${BASE_URL}/movie/popular?api_key=${API_KEY}&page=${page}`;
-
-      const response = await fetch(endpoint);
-      const data = await response.json();
-
-      let results = Array.isArray(data.results) ? data.results : [];
-      results = sortMovies(results, sort);
-
-      setMovies(results);
-      setTotalPages(Math.min(data.total_pages || 1, 500));
-    } catch (error) {
-      console.error("Error fetching movies:", error);
-      setMovies([]);
-      setTotalPages(1);
-    }
-  };
-
-  const sortMovies = (items, sortValue) => {
-    const sorted = [...items];
-
-    if (sortValue === "release_desc") {
-      sorted.sort((a, b) => (b.release_date || "").localeCompare(a.release_date || ""));
-    } else if (sortValue === "release_asc") {
-      sorted.sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""));
-    } else if (sortValue === "rating_desc") {
-      sorted.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
-    } else if (sortValue === "rating_asc") {
-      sorted.sort((a, b) => (a.vote_average || 0) - (b.vote_average || 0));
-    }
-
-    return sorted;
-  };
-
-  const applySort = () => {
-    setMovies((prev) => sortMovies(prev, sort));
-  };
+  }, [page, query, sort]);
 
   const handleSearchChange = (e) => {
     setQuery(e.target.value);
@@ -93,14 +81,8 @@ export default function App() {
 
             <label className="sort-wrap" htmlFor="sortSelect">
               <span className="sort-label">Sort by:</span>
-              <select
-                id="sortSelect"
-                value={sort}
-                onChange={handleSortChange}
-              >
-                <option value="" disabled hidden>
-                  Sort By
-                </option>
+              <select id="sortSelect" value={sort} onChange={handleSortChange}>
+                <option value="">Sort By</option>
                 <option value="release_desc">Release date (newest)</option>
                 <option value="release_asc">Release date (oldest)</option>
                 <option value="rating_desc">Average rating (highest)</option>
